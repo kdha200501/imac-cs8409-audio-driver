@@ -1199,6 +1199,9 @@ static void cs_8409_dump_paths(struct hda_codec *codec, const char *label_string
 
 
 
+// forward declaration - needed by resume function
+static int cs_8409_boot_setup(struct hda_codec *codec);
+
 // renamed this function as we dont want it called on resume
 // because we are using an explicit version of build controls we can add it there
 
@@ -1436,19 +1439,63 @@ static int cs_8409_apple_init(struct hda_codec *codec)
 
 static int cs_8409_apple_resume(struct hda_codec *codec)
 {
+        struct cs8409_apple_spec *spec = codec->spec;
+
         myprintk("snd_hda_intel: cs_8409_apple_resume\n");
-        // code copied from default resume patch ops
-	if (codec->patch_ops.init)
-		codec->patch_ops.init(codec);
-	snd_hda_regmap_sync(codec);
+
+        /* Reset driver-side state BEFORE running boot_setup so it sees the
+         * same initial values it did at probe time. Doing this after
+         * boot_setup left stale headset_phase==2 and play/capture flags in
+         * place, which altered boot_setup's branch decisions and left the
+         * codec partially reconfigured. */
+        spec->headset_phase = 0;
+        spec->play_init = 0;
+        spec->capture_init = 0;
+        spec->play_init_count = 0;
+        spec->capture_init_count = 0;
+
+        /* Re-run the full hardware init sequence to reprogram the CS8409
+         * and companion codec registers lost during sleep.
+         * cs_8409_boot_setup() -> cs_8409_boot_setup_real() calls
+         * enable_i2c() internally, which re-asserts the I2C master clock
+         * bit that suspend gated. */
+        cs_8409_boot_setup(codec);
+
+        /* Advance to the post-boot phase that the play/capture hooks
+         * expect (matches the ordering used in cs_8409_apple_init). */
+        spec->headset_phase = 2;
+
+        /* Re-enable unsolicited responses that suspend disabled. */
+        cs8409_enable_ur(codec, 1);
+
+        snd_hda_regmap_sync(codec);
+
         myprintk("snd_hda_intel: end cs_8409_apple_resume\n");
         return 0;
 }
 
 static int cs_8409_apple_suspend(struct hda_codec *codec)
 {
+        struct cs8409_apple_spec *spec = codec->spec;
+
         myprintk("snd_hda_intel: cs_8409_apple_suspend\n");
-        // no additional code for this so just dummy it
+
+        /* Quiesce pin outputs first, before tearing down the I2C master,
+         * so any verb-translated activity completes against a live clock. */
+        snd_hda_shutup_pins(codec);
+
+        /* Disable unsolicited responses before sleep */
+        cs8409_enable_ur(codec, 0);
+
+        /* Cancel pending i2c clock disable worker, and only THEN gate the
+         * I2C master clock. Gating the clock before the steps above left
+         * the CS8409 I2C state machine mid-transaction; because the codec
+         * is held up by Vstby the wedged state survived warm reboot and
+         * caused EFI to skip the boot chime. */
+        cancel_delayed_work_sync(&spec->i2c_clk_work);
+        cs8409_disable_i2c_clock(codec);
+
+        myprintk("snd_hda_intel: end cs_8409_apple_suspend\n");
         return 0;
 }
 

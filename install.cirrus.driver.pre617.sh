@@ -38,18 +38,10 @@ revpart3=$(echo $revision | cut -d '-' -f3)
 
 
 if [ $major_version -eq 5 -a $minor_version -lt 13 ]; then
-    if [ -e dkms.conf.orig ]; then
-        sed -i 's/^BUILT_MODULE_NAME\[0\].*$/BUILT_MODULE_NAME[0]="snd-hda-codec-cirrus"/' dkms.conf
-    else
-        sed -i.orig 's/^BUILT_MODULE_NAME\[0\].*$/BUILT_MODULE_NAME[0]="snd-hda-codec-cirrus"/' dkms.conf
-    fi
+    sed -i 's/^BUILT_MODULE_NAME\[0\].*$/BUILT_MODULE_NAME[0]="snd-hda-codec-cirrus"/' dkms.conf
     PATCH_CIRRUS=true
 else
-    if [ -e dkms.conf.orig ]; then
-        sed -i 's/^BUILT_MODULE_NAME\[0\].*$/BUILT_MODULE_NAME[0]="snd-hda-codec-cs8409"/' dkms.conf
-    else
-        sed -i.orig 's/^BUILT_MODULE_NAME\[0\].*$/BUILT_MODULE_NAME[0]="snd-hda-codec-cs8409"/' dkms.conf
-    fi
+    sed -i 's/^BUILT_MODULE_NAME\[0\].*$/BUILT_MODULE_NAME[0]="snd-hda-codec-cs8409"/' dkms.conf
     PATCH_CIRRUS=false
 fi
 

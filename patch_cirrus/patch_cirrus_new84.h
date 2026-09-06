@@ -1806,10 +1806,14 @@ static void cs_8409_pcm_capture_pre_prepare_hook(struct hda_pcm_stream *hinfo, s
 				}
 				else
 				{
+#ifdef INTERNAL_MIKE_ONLY
+                                        // unfortunately this does not work nicely with have_mike headsets
+                                        // so for the moment only do this if this build flag is set
                                         // initialize the internal mike if no headset mike
                                         // so can capture from the internal mike
                                         // has been tested and seems to work but I have not verified this
 					cs_8409_capture_setup(codec);
+#endif
 				}
 				// NOTE - still not fixed linein/lineout working - this may need
 				// changing here
